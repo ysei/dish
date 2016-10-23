@@ -1,0 +1,134 @@
+77c77,79
+< localhost|$(echo -n `hostname -s`)|$(echo -n `hostname`))
+---
+> localhost|127.0.0.1|$(echo -n `hostname -s`)|$(echo -n `hostname`))	#UTC ADy001999m06d29 Seisei
+> #UTC ADy001999m06d29 Seisei Yamaguchi 
+> #localhost|$(echo -n `hostname -s`)|$(echo -n `hostname`))
+145a148,159
+> #sleep_time=1	#UTC ADy001999m05d01 Seisei Yamaguchi
+> slept=''	#		 d02 Seisei 
+> ##19990629 Seisei
+> ##sleep_time_1=0	#	 d08 Seisei 
+> ##sleep_time_2=1	#	 d08 Seisei 
+> 
+> sleep_time__inner__default=0	#UTC ADy001999m06d29 Seisei Yamaguchi
+> sleep_time__outer__default=0	#		 d29 Seisei 
+> sleep_time__inner=$sleep_time__inner__default	#d29 Seisei 
+> sleep_time__outer=$sleep_time__outer__default	#d29 Seisei 
+> 
+> 
+164a179,197
+> ##UTC ADy001999m06d24 Seisei Yamaguchi
+> ##		-s1|--sleep-time-1|--sleep1)	#UTC ADy001999m05d08 Seisei Yamaguchi
+> ##			shift			#
+> ##			sleep_time_1=$1		#
+> ##			shift			#
+> ##			;;			#
+> ##		-s2|--sleep-time-2|--sleep2)	#UTC ADy001999m05d08 Seisei Yamaguchi
+> ##			shift			#
+> ##			sleep_time_2=$1		#
+> ##			shift			#
+> ##			;;			#
+> 		-s|--sleep-time|--sleep)	#
+> 			shift			#UTC ADy001999m05d01 
+> #			sleep_time=$1		#Seisei Yamaguchi
+> ##UTC ADy001999m06d29	sleep_time_1=$1		#UTC ADy001999m05d08 Seisei Yamaguchi
+> ##Seisei Yamaguchi	sleep_time_2=$1		#		 d08 Seisei
+> 			arg__sleep_time=$1	#	      m06d29 Seisei
+> 			shift			#
+> 			;;			#
+170a204,223
+> case $# in		#ADy001999m04-05 Seisei
+> 	0) usage ;;	#
+> esac			#
+> 
+> 
+> arg__sleep_time=`echo $arg__sleep_time |\
+> 	sed -e 's/,,/,null,/g' -e 's/^,/null,/'`			#UTC ADy001999m06d29 
+> arg__sleep_time=`echo $arg__sleep_time |\
+> 	sed -e 's/\([^,]*\),*\([^,]*\),*\([^,]*\),*\([^,]*\).*/\
+> 		sleep_time__inner2=\1; sleep_time__outer2=\2;\
+> 		sleep_time__inner1=\3; sleep_time__outer1=\4;/'`	#Seisei Yamaguchi 
+> arg__sleep_time=`echo $arg__sleep_time | sed -e 's/=null;/=;/g'`	#
+> eval $arg__sleep_time							#
+> 									#
+> sleep_time__inner=${sleep_time__inner1:=$sleep_time__inner}		#
+> sleep_time__outer=${sleep_time__outer1:=$sleep_time__outer}		#
+> sleep_time__inner2=${sleep_time__inner2:=$sleep_time__inner}		#
+> sleep_time__outer2=${sleep_time__outer2:=$sleep_time__outer}		#
+> 
+> 
+176,179d228
+< case $# in		#Seisei
+< 	0) usage ;;	#
+< esac			#
+< 
+214,216c263,265
+<   	set $hosts
+<   	while [ $# -gt 1 ]
+<   	do
+---
+> 	set $hosts
+> 	while [ $# -gt 1 ]
+> 	do
+218,220c267,269
+<     	i=$2
+<     	while [ $i -gt 0 ]
+<   		do
+---
+> 	i=$2
+> 	while [ $i -gt 0 ]
+> 		do
+222,228c271,274
+<       		lock=$dir/$1:$i
+< 
+< 		# patch to safety locking
+< 		# UTC ADy001999m04d22 fixed by Seisei Yamaguchi 
+< 		#if [ ! -e $lock ]	#orig
+< 		if	[ ! -e $lock ] && ln -s $$ $lock 2>/dev/null	#Seisei
+<       		then
+---
+> 		lock=$dir/$1:$i
+> #		if [ ! -e $lock ]	#orig
+> 		if [ ! -e $lock ] && ln -s $$ $lock 2>/dev/null #safety locking UTC ADy001999m04d22 Seisei Yamaguchi
+> 		then
+231c277
+<     			#>$lock		#UTC ADy001999m04d22 Seisei Yamaguchi 
+---
+> #			>$lock	#orig, UTC ADy001999m04d22 Seisei
+234,236c280,282
+<         		ersh $1 $interactive "sh -c 'cd $cwd && ( $args ) '"
+<         		ret=$?
+<         		#remove a lock file
+---
+> 			ersh $1 $interactive "sh -c 'cd $cwd && ( $args ) '"
+> 			ret=$?
+> 			#remove a lock file
+239,245c285,303
+<         		exit $ret
+<       		fi
+<       		i=`expr $i - 1`
+<    		done
+<     	shift 2
+<   	done
+<   	sleep 1
+---
+> 			exit $ret
+> 		fi
+> 		i=`expr $i - 1`
+> ##19990629_SY	sleep	$sleep_time_1	#UTC ADy001999m05d08 Seisei Yamaguchi
+> #		sleep	$sleep_time	#		 d01 Seisei
+> 		sleep	$sleep_time__inner	#     m06d29 Seisei
+> ##19990630_SY	slept='#'		#	      m05d02 Seisei
+> 		done
+> 	shift 2
+> 	done
+> 	sleep	$sleep_time__outer		#UTC ADy001999m06d29 
+> 	sleep_time__outer=$sleep_time__outer2	#Seisei Yamaguchi 
+> 	sleep_time__inner=$sleep_time__inner2	#	      m06d30 Seisei
+> #	sleep 1	#orig
+> #	eval $slept sleep $sleep_time	#UTC ADy001999m05d02 Seisei Yamaguchi
+> ##19990629_Seisei
+> ##	eval $slept sleep $sleep_time_2	#UTC ADy001999m05d08 Seisei Yamaguchi
+> ##	sleep_time_1=$sleep_time_2	#		 d08 Seisei
+> ##	slept=''			#		 d02 Seisei

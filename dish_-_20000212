@@ -1,0 +1,382 @@
+#!/bin/sh
+
+###settings from ersh-3.1
+###Written by Maarten Litmaath in 1991.
+ersh () {
+hostname=
+lflag=
+nflag=
+user=
+
+case $1 in
+-l)
+	;;
+*)
+	hostname=${1?'hostname expected'}
+	shift
+esac
+
+case $1 in
+-l)
+	lflag=-l
+	shift
+	user=${1?'username expected after -l flag'}
+	shift
+esac
+
+case $1 in
+-n)
+	nflag=-n
+	shift
+esac
+
+case $hostname in
+'')
+	hostname=${1?'hostname expected'}
+	shift
+esac
+
+id=ersh.$$.`date | awk '{ print $4; }'`
+hangup=99
+
+AWK='
+	prprev == 1 {
+		print prev0;
+		prprev = 0;
+	}
+	$1 == "'$id'" {
+		prev0 = $0;
+		prev2 = $2;
+		prev3 = $3;
+		prprev = 1;
+		next;
+	}
+	{
+		print;
+	}
+	END {
+		if (prprev == 0) {
+			exit('$hangup');
+		}
+		if (prev2 ~ /^[0-9]+0$/) {
+			exit(prev2 / 10);
+		}
+		if (prev2 ~ /^0$/ && prev3 ~ /^[0-9]+$/) {
+			exit(prev3);
+		}
+		print prev0;
+		exit('$hangup');
+	}
+'
+
+exec 3>&1
+
+# change to use islocalhost command by Seisei Yamaguchi at UTC CEy002000m02d09 
+#
+# # patch to localhost through
+# # UTC ADy001999m03d31 added by Seisei Yamaguchi 
+# # 27JUL99 matto
+# # remove "hostname -s" because some OS does not have -s option for hostname
+# case $hostname in
+# #localhost|$(echo -n `hostname`))		#orig
+# localhost|127.0.0.1|::1|$(echo -n `hostname`))	#UTC ADy001999m09d01 Seisei
+islocalhost	$hostname
+case	$?	in
+0)
+	cmd=${*-:}	# for $cmd used by other part. 
+	eval $cmd	# eval for avoid syntax-error.  
+;;
+*)
+#added by matto 27JUL99
+#It causes error when the user command outputs some string w/o last linefeed
+#character to stderr.
+#	cmd="( ${*-:} ); exec sh -c 'echo $id "'"$0 $1" | sed q >&2'\'' $?0 "$status"'
+	cmd="( ${*-:}; sh -c 'echo >&2' ); exec sh -c 'echo $id "'"$0 $1" | sed q >&2'\'' $?0 "$status"'
+	$RSH "$hostname" $lflag $user $nflag "$cmd" 2>&1 >&3 3>&- |
+		awk "$AWK" >&2 3>&-
+esac
+}	
+#end of ersh
+
+
+die () {
+	echo "$*" 1>&2
+	exit 1
+}
+
+usage () {
+	die '$Id: dish,v 1.15 1999/08/06 08:28:18 matto Exp $'"
+usage:  $script [options] foo [x] [bar [y] ... ] -c cmds
+Dish executes the specified command on one of the remote hosts.
+It distributes at most x jobs to the remote host foo and y jobs to bar.
+Default number of jobs is 1 if it is omitted.
+
+Options
+    -h, --help         Show this message.
+    -i, --interactive  By default, dish ignores any input from stdin.
+                       With this option, dish reads from stdin.
+    -v, --verbose      Display debug messages
+    -r, --refresh      Remove lock files and go.
+    -p, --pwd PATH     Specify current directory explicitly.
+                       dish usually gets current path from PWD environment 
+                       variable. However, some shells do not set PWD variable
+                       and dish tries to get it by pwd command, which only
+                       returns the absolute	path. Representation of current 
+                       absolute path sometimes differs between local and 
+                       remote host when the current path involves symbolic 
+                       link. 
+    -s, --sleep-time    \`\`--sleep-time 40,2'' means 
+		        \`\`sleep parameter for second and later loop'' is 40 , 
+			\`\`sleep parameter for first loop'' is 2 . 
+		       Default is 0,0 . 
+		       These parameters will used for 
+		       longer-time-needed-processes. 
+    -c     Terminator symbol of host list.
+    cmds   Bourne shell commands to be executed."
+}
+
+on_usage () {
+	die '$Id: dish,v 1.15 1999/08/06 08:28:18 matto Exp $'"
+usage:  $script [options] hostname cmds
+  or    $script [options] hostname cmds
+Options
+    -h, --help         Show this message.
+    -n                 Ignores any input from stdin.
+    -v, --verbose      Display debug messages
+    -p, --pwd PATH     Specify current directory explicitly.
+                       dish usually gets current path from PWD environment 
+                       variable. However, some shells do not set PWD variable
+                       and dish tries to get it by pwd command, which only
+                       returns the absolute path. Representation of current 
+                       absolute path sometimes differs between local and 
+                       remote host when the current path involves symbolic 
+                       link. 
+    cmds   Bourne shell commands to be executed."
+}
+
+dish () {
+#make work directory.
+dir="$HOME/.dish"
+unset verbose
+interactive="-n"
+unset refresh
+
+sleep_time__inner__default=0	#UTC ADy001999m06d29 m09d01--inserted from Seisei-local version 
+sleep_time__outer__default=0	#		 d29 m09d01 Seisei Yamaguchi
+sleep_time__inner=$sleep_time__inner__default	#d29 m09d01 Seisei 
+sleep_time__outer=$sleep_time__outer__default	#d29 m09d01 Seisei 
+
+while [ $# -gt 0 ]
+do
+	case $1 in
+		-i|--interactive)
+			interactive=""
+			shift
+			;;
+		-v|--verbose)
+			verbose=true
+			shift
+			;;
+		-h|--help)
+			usage
+			;;
+		-p|--pwd)
+			shift
+			cwd=$1
+			shift
+			;;
+		-r|--refresh)
+			refresh=true
+			shift
+			;;
+		-s|--sleep-time|--sleep)	#UTC ADy001999m05d01 m09d01--inserted from Seisei-local version 
+			shift			#
+			arg__sleep_time=$1	#	      m06d29 m09d01
+			shift			#
+			;;			#
+		*)
+			break
+			;;
+	esac
+done
+
+case $# in		#ADy001999m04-05 Seisei
+	0) usage ;;	#
+esac			#
+
+
+arg__sleep_time=`echo $arg__sleep_time |\
+	sed -e 's/,,/,null,/g' -e 's/^,/null,/'`	#UTC ADy001999m06d29 m09d01
+arg__sleep_time=`echo $arg__sleep_time |\
+	sed -e 's/\([^,]*\),*\([^,]*\),*\([^,]*\),*\([^,]*\).*/\
+		sleep_time__inner2=\1; sleep_time__outer2=\2;\
+		sleep_time__inner1=\3; sleep_time__outer1=\4;/'`	#Seisei
+arg__sleep_time=`echo $arg__sleep_time | sed -e 's/=null;/=;/g'`	#
+eval $arg__sleep_time							#
+									#
+sleep_time__inner=${sleep_time__inner1:=$sleep_time__inner}		#
+sleep_time__outer=${sleep_time__outer1:=$sleep_time__outer}		#
+sleep_time__inner2=${sleep_time__inner2:=$sleep_time__inner}		#
+sleep_time__outer2=${sleep_time__outer2:=$sleep_time__outer}		#
+
+
+#split arguments
+# UTC ADy001999m04d20	Patched by Seisei Yamaguchi
+#hosts=`echo $* | sed -e 's/[ 	]-c[ 	].*$//' -e 's/:/ /g'`	#Seisei
+#hosts=`echo $* | sed -e 's/-c.*$//' | sed -e 's/:/ /g'`	#orig
+
+unset hosts
+while [ $1 != "-c" ]
+do
+	hosts="$hosts $1"
+	shift
+	case $# in
+	    0) usage ;;
+	esac
+	njob=1
+	if ( echo $1 | grep -q '^[0-9]*$' )
+	then
+	    njob=$1
+	    shift
+	    case $# in
+		0) usage ;;
+	    esac
+	fi
+	hosts="$hosts $njob"
+done
+shift
+args=$*
+case $verbose in
+true)
+    echo "Pwd: $cwd" >&2
+    echo "Host list: $hosts" >&2
+    echo "Argument list: $args" >&2
+    ;;
+esac
+
+# clean locks
+if [ -d $dir ]
+then
+    case $refresh in
+	true)
+	    [ -n "$verbose" ] && echo "Remove lock files in ${dir}..." >&2
+	    rm $dir/*
+	    ;;
+    esac
+else
+    mkdir $dir || die "Cannot make $dir"
+fi
+
+case X${hosts}X in
+XX) usage ;;
+esac
+case X${args}X in
+XX) usage ;;
+esac
+
+while :
+do
+	set $hosts
+  	while [ $# -gt 1 ]
+  	do
+		[ -n "$verbose" ] && echo "Trying host: $1" >&2
+    	i=$2
+    	while [ $i -gt 0 ]
+  		do
+			[ -n "$verbose" ] && echo "Trying job: $i" >&2
+      		lock=$dir/$1:$i
+
+		# patch to safety locking
+		# UTC ADy001999m04d22 fixed by Seisei Yamaguchi 
+		#if [ ! -e $lock ]	#orig
+		if	[ ! -e $lock ] && ln -s $$ $lock 2>/dev/null	#Seisei
+      		then
+				#touch a lock file
+				[ -n "$verbose" ] && echo "Lock file: $lock" >&2
+    			#>$lock		#UTC ADy001999m04d22 Seisei Yamaguchi 
+				# echo "$ersh $1 $interactive \"sh -c \'cd $cwd; $args \'\""
+				[ -n "$verbose" ] && echo "Invoking remote command: ersh $1 -n \"sh -c 'cd $cwd && ( $args )'\"" >&2
+        		ersh $1 $interactive "sh -c 'cd $cwd && ( $args ) '"
+        		ret=$?
+        		#remove a lock file
+				rm $lock #|| die "Lock file is removed."
+				[ -n "$verbose" ] && echo "Unlock file: $lock" >&2
+        		exit $ret
+      		fi
+      		i=`expr $i - 1`
+		sleep	$sleep_time__inner	#UTC ADy001999m06d29 m09d01 Seisei
+   		done
+    	shift 2
+  	done
+  	sleep 1	#orig
+#	sleep	$sleep_time__outer		#UTC ADy001999m06d29 m09d01 
+#	sleep_time__outer=$sleep_time__outer2	#Seisei 
+	sleep_time__inner=$sleep_time__inner2	#	      m06d30 m09d01
+done
+} #end of dish()
+
+on () {
+	unset verbose
+	interactive=""
+	while [ $# -gt 0 ]
+	do
+		case $1 in
+			-n)
+				interactive="-n"
+				shift
+				;;
+			-d|-v|--verbose)
+				verbose=true
+				shift
+				;;
+			-h|--help)
+				on_usage
+				;;
+	    	-p|--pwd)
+				shift
+				cwd=$1
+				shift
+				;;
+			*)
+				break
+				;;
+		esac
+	done
+	if [ ! -n "$target" ]
+	then
+		 target=$1
+		 shift
+ 	fi
+	[ $# -le 0 ] && on_usage
+	[ -n "$verbose" ] && echo "Target: $target" >&2
+	[ -n "$verbose" ] && echo "Pwd: $cwd" >&2
+	[ -n "$verbose" ] && echo "Invoking remote command: ersh $target $interactive \"sh -c 'cd $cwd; $* '\"" >&2
+	ersh $target $interactive "sh -c 'cd $cwd; $* '"
+}
+
+
+
+#trap 'echo "Interrupted" 1>&2 ; if [ -e ${lock?"Not locked."} ]; then rm $lock; fi'  1 2 15
+#trap those signals
+trap 'echo "Interrupted" 1>&2'  1 2 15
+
+#option handling
+#use if envvar PWD is set, do pwd otherwise.
+#result of pwd command is sometimes inappropriate when the path is symlinked.
+cwd=${PWD-`pwd`}
+RSH=`which remsh` || RSH=`which rsh` || die "Cannot find remote shell."
+script=`basename $0`
+case $script in
+	on)
+		target=""
+		on $*
+		;;
+	dish)
+		dish $*
+		;;
+	*)
+		target=$script
+		on $*
+		;;
+esac
+
